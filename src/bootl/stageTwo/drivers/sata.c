@@ -1,43 +1,66 @@
 #include "sata.h"
+#include <stdint.h>
 
-// in and out instructions
-static inline uint32_t in(uint16_t port) {
-    uint32_t value;
-    asm volatile ("inl %1, %0" : "=a"(value) : "Nd"(port));
-    return value;
+uint32_t inl(uint16_t port) {
+    uint32_t data;
+    __asm__ volatile("inl %1, %0" : "=a"(data) : "dN"(port));
+    return data;
+}
+void outl(uint16_t port, uint32_t data) {
+    __asm__ volatile ("outl %0, %1" : : "a"(data), "Nd"(port));
 }
 
-static inline void outl(uint16_t port, uint32_t value) {
-    asm volatile("outl %0, %1" : : "a"(value), "Nd"(port));
-}
-
-uint8_t isSataDrive(uint16_t bus, uint8_t device) {
-    uint32_t addr = (1 << 31)
-                |   (bus << 16)
-                |   (device << 11)
-                |   (0 << 8)
-                |   (0x0C & 0xFC);
+uint32_t getData(uint32_t bus, uint32_t device, uint32_t function, uint32_t offset) {
+    uint32_t addr = 
+        (1U << 31)               |
+        ((uint32_t)bus << 16)    |
+        ((uint32_t)device << 11) |
+        ((uint32_t)function << 8)|
+        (offset & 0xFC);                      // 0 is the offset 0x10 is bar0 0x24 is bar5 (mmio address;)
     outl(0xCF8, addr);
-    uint32_t value = in(0xCFC);
-    uint8_t baseClass = (value >> 24) & 0xFF;
-    uint8_t subClass  = (value >> 16) & 0xFF;
-    if (baseClass == 0x01 && subClass == 0x06) 
-        return 1;
-    return 0;
+    uint32_t data = inl(0xCFC);
+    return data;
 }
 
-void sata_scanAllPorts(uint8_t devices[256]) {
-    int i = 0;
-    for (uint16_t a = 0; a < 256; a++) {
-        for (uint8_t b = 0; b < 32; b++) {
-            if (isSataDrive(a, b)) {
-                devices[i] = 1;
-                i++;
+sata_pciSataDevices sata_enumerate() {
+    uint32_t deviceCount = 0;
+    sata_pciSataDevices devices;
+    for (int bus = 0; bus < 256; bus++) {
+        for (int device = 0; device < 32; device++) {
+            for (int function = 0; function < 8; function++) {
+                uint32_t data = getData(bus, device, function, 0);  // 0 is the offset 0x10 is bar0 0x24 is bar5 (mmio address;)
+
+                uint16_t vendor = data & 0xFFFF;
+                if (vendor == 0xFFFF) continue;                      // There is no device
+
+                uint32_t classData = getData(bus,device,function, 0x08);
+                uint8_t classCode = (classData >> 24) & 0xFF;
+                uint8_t subclass  = (classData >> 16) & 0xFF;
+                uint8_t progIF    = (classData >> 8)  & 0xFF;
+                if (classCode == 0x01 && subclass == 0x06 && progIF == 0x01) {
+                    // SATA AHCI controller found!
+                    
+                    // Read BAR5 for AHCI MMIO
+                    uint32_t bar5 = getData(bus, device,function, 0x24);
+
+                    uint32_t hba_mmio_base = bar5 & 0xFFFFFFF0;
+
+                    // Store or print the MMIO base
+                    // Example: log("AHCI found at BAR5 = %x", hba_mmio_base);
+                    devices.drives[deviceCount].bus = bus;
+                    devices.drives[deviceCount].device = device;
+                    devices.drives[deviceCount].function = function;
+                    devices.drives[deviceCount].mmio_region = hba_mmio_base;
+                    deviceCount +=1;
+                }
             }
         }
     }
+    devices.count = deviceCount;
+    return devices;
 }
 
-void sata_read(uint64_t lba, uint32_t sectorCount, void* buffer) {
-    
+
+uint32_t sata_read(uint64_t lba, uint32_t memlocation, uint32_t sectorCount, sata_sataDevice device) {
+
 }

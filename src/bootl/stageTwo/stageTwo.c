@@ -5,12 +5,9 @@
 void stageTwo() {
     vga_clear();
     vga_print("Stage Two Loaded", 0, 0);
-    
-    uint8_t devices[256];
-    sata_scanAllPorts(devices);
-    for (int i = 0; i < 256; i++) {
-        if (devices[i] == 1)
-            vga_print("device found!", 0, 1);
+    sata_pciSataDevices sataDevices = sata_enumerate();
+    if (sataDevices.count > 0) {
+        vga_print("Found atleast 1 sata device!", 0, 1);
     }
     while(1);
 }

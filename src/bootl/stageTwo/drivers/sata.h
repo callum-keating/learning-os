@@ -1,9 +1,13 @@
 #include <stdint.h>
-typedef struct {
-        uint16_t deviceIdentifier;          // number used to identify the device with other functions
-        uint32_t size;                      // size of device in bytes
-        uint16_t sector_size;               // size of sector e.g. 512, 4096
-} sataDevice;
+typedef struct sata_sataDevice {
+    uint32_t bus;
+    uint32_t device;
+    uint32_t function;
+    uint32_t mmio_region;
+}sata_sataDevice;
+typedef struct sata_pciSataDevices {
+    sata_sataDevice drives[20];
+    uint8_t count;
+} sata_pciSataDevices;
 
-void sata_read(uint64_t lba, uint32_t sectorCount, void* buffer);
-void sata_scanAllPorts(uint8_t devices[256]);
+sata_pciSataDevices sata_enumerate();

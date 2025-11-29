@@ -124,6 +124,14 @@ loadSector2:
     mov dh, 0
     mov bx, 0x7e00
     int 13h
+
+    mov ah, 2 
+    mov al, 127
+    mov ch, 0
+    mov cl, 129
+    mov dh, 0
+    mov bx, 0x7e00 + 127 * 512
+    int 13h
     ret
 
 enableA20:
